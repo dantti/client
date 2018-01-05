@@ -202,6 +202,8 @@ private:
     QPointer<GETFileJob> _job;
     QFile _tmpFile;
     bool _deleteExisting;
+    bool _isEncrypted = false;
+    QString _decryptedName;
 
     QElapsedTimer _stopwatch;
 };

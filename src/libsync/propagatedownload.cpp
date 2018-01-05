@@ -24,6 +24,7 @@
 #include "propagatorjobs.h"
 #include "common/checksums.h"
 #include "common/asserts.h"
+#include "clientsideencryptionjobs.h"
 
 #include <QLoggingCategory>
 #include <QNetworkAccessManager>
@@ -346,6 +347,41 @@ void PropagateDownloadFile::start()
         return;
 
     qCDebug(lcPropagateDownload) << _item->_file << propagator()->_activeJobList.count();
+    if (propagator()->account()->capabilities().clientSideEncryptionAvaliable()) {
+        const QString folder = _item->_file.section('/', 0, -2) + QLatin1Char('/');
+        _isEncrypted = propagator()->account()->e2e()->isFolderEncrypted(folder);
+        qCDebug(lcPropagateDownload) << "-+_+_+_+_" << folder << "is Encrypted" <<_isEncrypted;
+        if (_isEncrypted) {
+            qCDebug(lcPropagateDownload) << "Folder is encrypted, let's get the Id from it.";
+            QFileInfo info(_item->_file);
+            LsColJob *job = new LsColJob(propagator()->account(), info.path(), this);
+            job->setProperties({"resourcetype", "http://owncloud.org/ns:fileid"});
+            connect(job, &LsColJob::directoryListingSubfolders, this, [job, this] (const QStringList &list) {
+                qCDebug(lcPropagateDownload) << "Received id of folder, trying to lock it so we can prepare the metadata";
+                const ExtraFolderInfo &folderInfo = job->_folderInfos.value(list.first());
+
+                // Now that we have the folder-id we need it's JSON metadata
+                auto metadataJob = new GetMetadataApiJob(propagator()->account(), folderInfo.fileId);
+                connect(metadataJob, &GetMetadataApiJob::jsonReceived,
+                        this, [=] (const QJsonDocument &json)
+                {
+                  qCDebug(lcPropagateDownload) << "Metadata Received, Preparing it for the new file." << json.toJson() << _item->_file;
+                  auto meta = new FolderMetadata(propagator()->account(), json.toJson(QJsonDocument::Compact));
+                  const QVector<EncryptedFile> files = meta->files();
+                  for (const EncryptedFile &file : files) {
+                      qCDebug(lcPropagateDownload) << "file" << file.encryptedFilename << file.originalFilename << file.encryptionKey;
+                  }
+                });
+                metadataJob->start();
+            });
+//            connect(job, &LsColJob::finishedWithError, this, &PropagateUploadEncrypted::slotFolderEncryptedIdError);
+            job->start();
+            return;
+
+
+            // find proper name
+        }
+    }
     _stopwatch.start();
 
     if (_deleteExisting) {
@@ -785,7 +821,12 @@ void PropagateDownloadFile::contentChecksumComputed(const QByteArray &checksumTy
 {
     _item->_checksumHeader = makeChecksumHeader(checksumType, checksum);
 
-    downloadFinished();
+    if (_isEncrypted) {
+//        auto job = new FileDecryptionJob();
+//        connect
+    } else {
+        downloadFinished();
+    }
 }
 
 void PropagateDownloadFile::downloadFinished()

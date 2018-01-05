@@ -134,10 +134,11 @@ void PropagateUploadEncrypted::slotFolderEncriptedMetadataReceived(const QJsonDo
   _metadata->addEncryptedFile(encryptedFile);
   _encryptedFile = encryptedFile;
 
-  qCDebug(lcPropagateUpload) << "Metadata created, sending to the server.";
+  QByteArray data = _metadata->encryptedMetadata();
+  qCDebug(lcPropagateUpload) << "Metadata created, sending to the server." << data;
   auto job = new UpdateMetadataApiJob(_propagator->account(),
                                       _folderId,
-                                      _metadata->encryptedMetadata(),
+                                      data,
                                       _folderToken);
 
   connect(job, &UpdateMetadataApiJob::success, this, &PropagateUploadEncrypted::slotUpdateMetadataSuccess);
