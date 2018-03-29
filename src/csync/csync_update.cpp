@@ -187,10 +187,16 @@ static int _csync_detect_update(CSYNC *ctx, std::unique_ptr<csync_file_stat_t> f
    * renamed, the db gets queried by the inode of the file as that one
    * does not change on rename.
    */
+  qCritical() << "+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_ ctx->current == REMOTE_REPLICA? " << (ctx->current == REMOTE_REPLICA);
+  qCritical() << "+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_";
+  qCritical() << "+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_" << fs->path << fs->inode << fs->file_id;
   if(!ctx->statedb->getFileRecord(fs->path, &base)) {
+      qCritical() << "+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_ FAILED to get file record from DB" << fs->path << fs->inode;
       ctx->status_code = CSYNC_STATUS_UNSUCCESSFUL;
       return -1;
   }
+  qCritical() << "+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_+_" << fs->path << fs->inode << " BASE valid" << base.isValid();
+
 
   /*
    * When file is encrypted it's phash (path hash) will not match the local file phash,

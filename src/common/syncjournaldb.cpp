@@ -56,6 +56,7 @@ static void fillFileRecordFromGetQuery(SyncJournalFileRecord &rec, SqlQuery &que
     rec._serverHasIgnoredFiles = (query.intValue(8) > 0);
     rec._checksumHeader = query.baValue(9);
     rec._e2eMangledName = query.baValue(10);
+    qCritical() << "+++++++++++++++++++++ FILL" << rec._path << rec._e2eMangledName << query.lastQuery();
 }
 
 static QString defaultJournalMode(const QString &dbPath)
@@ -1018,7 +1019,7 @@ bool SyncJournalDb::setFileRecord(const SyncJournalFileRecord &_record)
     qCInfo(lcDb) << "Updating file record for path:" << record._path << "inode:" << record._inode
                  << "modtime:" << record._modtime << "type:" << record._type
                  << "etag:" << record._etag << "fileId:" << record._fileId << "remotePerm:" << record._remotePerm.toString()
-                 << "fileSize:" << record._fileSize << "checksum:" << record._checksumHeader;
+                 << "fileSize:" << record._fileSize << "checksum:" << record._checksumHeader << "e2eMangledName:" << record._e2eMangledName;
 
     qlonglong phash = getPHash(record._path);
     if (checkConnect()) {
@@ -1353,12 +1354,17 @@ bool SyncJournalDb::updateLocalMetadata(const QString &filename,
 
 bool SyncJournalDb::setFileRecordMetadata(const SyncJournalFileRecord &record)
 {
+    qCritical() << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> setFileRecordMetadata" << record._path;
     SyncJournalFileRecord existing;
-    if (!getFileRecord(record._path, &existing))
+    if (!getFileRecord(record._path, &existing)) {
+        qCritical() << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> setFileRecordMetadata" << false;
+
         return false;
+    }
 
     // If there's no existing record, just insert the new one.
     if (!existing.isValid()) {
+        qCritical() << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> setFileRecordMetadata !existing.isValid()";
         return setFileRecord(record);
     }
 

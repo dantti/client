@@ -96,6 +96,8 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
     csync_s::FileMap *our_tree = nullptr;
     csync_s::FileMap *other_tree = nullptr;
 
+          qCritical() << ctx->current << cur->file_id << cur->path << cur->instruction << cur->e2eMangledName;
+
     /* we need the opposite tree! */
     switch (ctx->current) {
     case LOCAL_REPLICA:
@@ -110,7 +112,16 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
         break;
     }
 
-    csync_file_stat_t *other = other_tree->findFile(cur->path);;
+    csync_file_stat_t *other;
+
+    qCritical() << "************************** 1 _csync_merge_algorithm_visitor" << cur->path << cur->e2eMangledName;
+    if (cur->e2eMangledName.isEmpty()) {
+        other = other_tree->findFile(cur->path);
+    } else {
+        qCritical() << "************************** 1 _csync_merge_algorithm_visitor find with encrypted name" << cur->path << cur->e2eMangledName;
+        other = other_tree->findFile(cur->e2eMangledName);
+        qCritical() << "************************** 1 found?" << other;
+    }
 
     if (!other) {
         /* Check the renamed path as well. */
@@ -120,6 +131,10 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
         /* Check if it is ignored */
         other = _csync_check_ignored(other_tree, cur->path);
         /* If it is ignored, other->instruction will be  IGNORE so this one will also be ignored */
+    }
+    if (!other) {
+        qCritical() << "**************************Trying to find encrypted file" << cur->path;
+        other = other_tree->findEncryptedFile(cur->path);
     }
 
     /* file only found on current replica */
@@ -142,6 +157,7 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
                 break;
             }
             cur->instruction = CSYNC_INSTRUCTION_REMOVE;
+            qCritical() << "************************** 1 cur not found marking to CSYNC_INSTRUCTION_REMOVE" << cur->path << cur->e2eMangledName;
             break;
         case CSYNC_INSTRUCTION_EVAL_RENAME: {
             // By default, the EVAL_RENAME decays into a NEW
@@ -263,6 +279,7 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
             break;
         }
     } else {
+        qCritical() << "************************** 2" << csync_instruction_str(cur->instruction);
         bool is_conflict = true;
         /*
      * file found on the other replica
@@ -283,6 +300,7 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
         /* file on current replica is changed or new */
         case CSYNC_INSTRUCTION_EVAL:
         case CSYNC_INSTRUCTION_NEW:
+            qCritical() << "************************** OTHER instruction" << csync_instruction_str(other->instruction);
             switch (other->instruction) {
             /* file on other replica is changed or new */
             case CSYNC_INSTRUCTION_NEW:
@@ -290,10 +308,12 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
                 if (other->type == ItemTypeDirectory &&
                         cur->type == ItemTypeDirectory) {
                     // Folders of the same path are always considered equals
+                    qCritical() << "************************** 3 is_conflict false" ;
                     is_conflict = false;
                 } else {
                     // If the size or mtime is different, it's definitely a conflict.
                     is_conflict = ((other->size != cur->size) || (other->modtime != cur->modtime));
+                    qCritical() << "************************** 4 is_conflict"  << is_conflict;
 
                     // It could be a conflict even if size and mtime match!
                     //
@@ -307,6 +327,7 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
                         (ctx->current == REMOTE_REPLICA ? cur->checksumHeader : other->checksumHeader);
                     if (!remoteChecksumHeader.isEmpty()) {
                         is_conflict = true;
+                        qCritical() << "************************** 5 is_conflict"  << is_conflict;
 
                         // Do we have an UploadInfo for this?
                         // Maybe the Upload was completed, but the connection was broken just before
@@ -318,12 +339,13 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
                             auto localNode = ctx->current == REMOTE_REPLICA ? other : cur;
                             remoteNode->instruction = CSYNC_INSTRUCTION_NONE;
                             localNode->instruction = up._modtime == localNode->modtime ? CSYNC_INSTRUCTION_UPDATE_METADATA : CSYNC_INSTRUCTION_SYNC;
-
+qCritical() << "************************** 6"  << is_conflict;
                             // Update the etag and other server metadata in the journal already
                             // (We can't use a typical CSYNC_INSTRUCTION_UPDATE_METADATA because
                             // we must not store the size/modtime from the file system)
                             OCC::SyncJournalFileRecord rec;
                             if (ctx->statedb->getFileRecord(remoteNode->path, &rec)) {
+                                qCritical() << "************************** 7 is_conflict"  << is_conflict;
                                 rec._path = remoteNode->path;
                                 rec._etag = remoteNode->etag;
                                 rec._fileId = remoteNode->file_id;
@@ -351,15 +373,19 @@ static int _csync_merge_algorithm_visitor(csync_file_stat_t *cur, CSYNC * ctx) {
                     // If the files are considered equal, only update the DB with the etag from remote
                     cur->instruction = is_conflict ? CSYNC_INSTRUCTION_CONFLICT : CSYNC_INSTRUCTION_UPDATE_METADATA;
                     other->instruction = CSYNC_INSTRUCTION_NONE;
+                    qCritical() << "************************** REMOTE_REPLICA" ;
                 } else {
                     cur->instruction = CSYNC_INSTRUCTION_NONE;
                     other->instruction = is_conflict ? CSYNC_INSTRUCTION_CONFLICT : CSYNC_INSTRUCTION_UPDATE_METADATA;
+                    qCritical() << "************************** REMOTE_REPLICA NOT" ;
                 }
+                qCritical() << "************************** END ****  is_conflict" << csync_instruction_str(cur->instruction);
 
                 break;
                 /* file on the other replica has not been modified */
             case CSYNC_INSTRUCTION_NONE:
             case CSYNC_INSTRUCTION_UPDATE_METADATA:
+                qCritical() << "************************** LOCAL file type, other type" << cur->type << other->type;
                 if (cur->type != other->type) {
                     // If the type of the entity changed, it's like NEW, but
                     // needs to delete the other entity first.

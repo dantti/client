@@ -133,6 +133,9 @@ void PropagateUploadEncrypted::slotFolderEncryptedMetadataReceived(const QJsonDo
   EncryptedFile encryptedFile;
   QVector<EncryptedFile> files = _metadata->files();
   for(EncryptedFile &file : files) {
+      qCCritical(lcPropagateUploadEncrypted) << "=========================================" << file.originalFilename << _item->_file;
+      qCCritical(lcPropagateUploadEncrypted) << "=========================================" << file.encryptedFilename;
+
     if (file.originalFilename == fileName) {
       encryptedFile = file;
       found = true;
@@ -142,6 +145,10 @@ void PropagateUploadEncrypted::slotFolderEncryptedMetadataReceived(const QJsonDo
 
 
   // New encrypted file so set it all up!
+qCCritical(lcPropagateUploadEncrypted) << "=========================================";
+qCCritical(lcPropagateUploadEncrypted) << "=========================================";
+qCCritical(lcPropagateUploadEncrypted) << _item->_file << encryptedFile.encryptedFilename.isEmpty() <<encryptedFile.encryptedFilename;
+qCCritical(lcPropagateUploadEncrypted) << _item->_file << _item->_encryptedFileName;
   if (!found) {
       encryptedFile.encryptionKey = EncryptionHelper::generateRandom(16);
       encryptedFile.encryptedFilename = EncryptionHelper::generateRandomFilename();

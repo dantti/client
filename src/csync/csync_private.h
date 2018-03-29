@@ -120,6 +120,19 @@ struct OCSYNC_EXPORT csync_s {
           auto it = find(key);
           return it != end() ? it->second.get() : nullptr;
       }
+      csync_file_stat_t *findEncryptedFile(const ByteArrayRef &key) const {
+          auto it = begin();
+          while (it != end()) {
+              csync_file_stat_t *fs = it->second.get();
+              qCritical() << "*******" << fs->e2eMangledName << fs->path;
+              if (fs->e2eMangledName == key) {
+                  qCritical() << "*******" << fs->e2eMangledName << "FOUND!!!!";
+                  return fs;
+              }
+              ++it;
+          }
+          return nullptr;
+      }
   };
 
   struct {
